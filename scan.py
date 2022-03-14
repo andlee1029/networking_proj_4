@@ -109,6 +109,69 @@ def redirect_to_https(dic,line):
 
     do(line,"http://" + line,0)
 
+def hsts(dic, line):
+    if dic[line]["insecure_http"] == False:
+        dic[line]["hsts"] = False
+        return
+
+    ctr = 0
+    path = "http://" + line
+    while counter < 10 and path[:5] != "https":
+        try:
+            response = subprocess.check_output(["curl","-I",path], timeout=4, stderr=subprocess.STDOUT).decode("utf-8")
+            chunks = response.split("\r\n")
+            start = chunks[0].split("HTTP")[1]
+            if len(start) > 7 and start[:7] == "/1.1 30":
+                locationfound = False
+                for chunk in chunks:
+                    if len(chunk) > 10 and (chunk[:10] == "Location: "):
+                        path = chunk[10:]
+                        counter += 1
+                        locationfound = True
+                if not locationfound:
+                    dic[line]["hsts"] = False
+                    return
+
+            else:
+                dic[line]["hsts"] = False
+                return
+        except subprocess.TimeoutExpired:
+            print(line + " failed redirect_to_https bc of timeout")
+            dic[line]["hsts"]=False
+            return
+        except:
+            print(line + " failed redirect_to_https not because of timeout")
+            dic[line]["hsts"] = False
+            return
+
+
+
+        counter += 1
+    if counter == 10:
+        dic[line]["hsts"] = False
+        return
+    try:
+        response = subprocess.check_output(["curl","-I",path], timeout=4, stderr=subprocess.STDOUT).decode("utf-8")
+        # fix this part
+        inchunkserver = False
+        print(response)
+        # for chunk in chunks:
+        #     if len(chunk) > 8 and (chunk[:8] == "server: " or chunk[:8] == "Server: "):
+        #         dic[line]["http_server"] = chunk[8:]
+        #         inchunkserver = True
+
+
+    except subprocess.TimeoutExpired:
+        print(line + " failed redirect_to_https bc of timeout")
+        dic[line]["hsts"]=False
+        return
+    except:
+        print(line + " failed redirect_to_https not because of timeout")
+        dic[line]["hsts"] = False
+        return
+
+
+
 
 def rtt_range(dic,line):
     ipv4_addresses = dic[line]["ipv4_addresses"]
@@ -181,7 +244,9 @@ with open(inpath,"r") as file:
 
         # redirect_to_https(dic,line)
 
-        rtt_range(dic,line)
+        hsts(dic,line)
+
+        # rtt_range(dic,line)
 
         # geo_locations(dic,line)
 
