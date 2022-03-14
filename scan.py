@@ -110,7 +110,34 @@ def redirect_to_https(dic,line):
     do(line,"http://" + line,0)
 
 
-# def rtt_range(dic,line):
+def rtt_range(dic,line):
+    ipv4_addresses = dic[line]["ipv4_addresses"]
+    ports = ["80","443","22"]
+    rtt_min = None
+    rtt_max = None
+    for ipv4 in ipv4_addresses:
+        for port in ports:
+            try:
+                response = subprocess.check_output(("sh -c \"time echo -e '\\x1dclose\\x0d' | telnet " + ipv4 + " "  + port + "\""), shell=True, timeout=4, stderr=subprocess.STDOUT).decode("utf-8")
+                chunks = response.split("\n")
+                time = float(chunks[7][8:-1]) * 1000
+                if rtt_min is None or time < rtt_min: rtt_min = time
+                if rtt_max is None or time > rtt_max: rtt_max = time
+                break
+
+            except subprocess.TimeoutExpired:
+                print(ipv4 + " of " + line + " failed rtt_range because of timeout")
+
+            except:
+                print(ipv4 + " of " + " failed rtt_range not because of timeout")
+
+    if rtt_min is None and rtt_max is None:
+        dic[line]["rtt_range"] = None
+    else:
+        dic[line]["rtt_range"] = (rtt_min,rtt_max)
+
+
+
 
 
 
@@ -146,17 +173,17 @@ with open(inpath,"r") as file:
 
         ipv4_addresses(dic,line)
 
-        ipv6_addresses(dic,line)
+        # ipv6_addresses(dic,line)
 
-        http_server(dic,line)
+        # http_server(dic,line)
 
-        insecure_http(dic,line)
+        # insecure_http(dic,line)
 
-        redirect_to_https(dic,line)
+        # redirect_to_https(dic,line)
 
-        # rtt_range(dic,line)
+        rtt_range(dic,line)
 
-        geo_locations(dic,line)
+        # geo_locations(dic,line)
 
 
 
