@@ -85,7 +85,7 @@ def redirect_to_https(dic,line):
             start = chunks[0].split("HTTP")[1]
             if len(start) > 7 and start[:7] == "/1.1 30":
                 for chunk in chunks:
-                    if len(chunk) > 10 and (chunk[:10] == "Location: "):
+                    if len(chunk) > 10 and (chunk[:10] == "Location: " or chunk[:10] == "location: "):
                         if chunk[10:16] == "https:":
                             dic[orig]["redirect_to_https"] = True
                             return
@@ -110,28 +110,54 @@ def redirect_to_https(dic,line):
     do(line,"http://" + line,0)
 
 def hsts(dic, line):
+    def check_strict(path):
+        try:
+            response = subprocess.check_output(["curl","-I",path], timeout=4, stderr=subprocess.STDOUT).decode("utf-8")
+
+            chunks = response.split("\r\n")
+            for chunk in chunks:
+                if len(chunk) > 26 and (chunk[:26] == "strict-transport-security:"):
+                    return True
+            return False
+
+
+        except subprocess.TimeoutExpired:
+            print(line + " failed redirect_to_https bc of timeout")
+            return False
+        except:
+            print(line + " failed redirect_to_https not because of timeout")
+            return False
+
+
+    def check_redirect(response):
+        chunks = response.split("\r\n")
+        start = chunks[0].split("HTTP")[1]
+        if len(start) > 7 and start[:7] == "/1.1 30":
+            for chunk in chunks:
+                if len(chunk) > 10 and (chunk[:10] == "Location: " or chunk[:10] == "location: "):
+                    path = chunk[10:]
+                    break
+            return True, path
+        return False, None
+
+
     if dic[line]["insecure_http"] == False:
         dic[line]["hsts"] = False
         return
 
-    ctr = 0
+    counter = 0
     path = "http://" + line
-    while counter < 10 and path[:5] != "https":
+    while counter < 10:
         try:
             response = subprocess.check_output(["curl","-I",path], timeout=4, stderr=subprocess.STDOUT).decode("utf-8")
-            chunks = response.split("\r\n")
-            start = chunks[0].split("HTTP")[1]
-            if len(start) > 7 and start[:7] == "/1.1 30":
-                locationfound = False
-                for chunk in chunks:
-                    if len(chunk) > 10 and (chunk[:10] == "Location: "):
-                        path = chunk[10:]
-                        counter += 1
-                        locationfound = True
-                if not locationfound:
-                    dic[line]["hsts"] = False
-                    return
 
+            redirect, newpath = check_redirect(response)
+            if redirect:
+                if newpath[:6] == "https:" and check_strict(newpath):
+                    dic[line]["hsts"] = True
+                    return
+                else:
+                    path = newpath
             else:
                 dic[line]["hsts"] = False
                 return
@@ -143,32 +169,12 @@ def hsts(dic, line):
             print(line + " failed redirect_to_https not because of timeout")
             dic[line]["hsts"] = False
             return
-
-
-
         counter += 1
-    if counter == 10:
-        dic[line]["hsts"] = False
-        return
-    try:
-        response = subprocess.check_output(["curl","-I",path], timeout=4, stderr=subprocess.STDOUT).decode("utf-8")
-        # fix this part
-        inchunkserver = False
-        print(response)
-        # for chunk in chunks:
-        #     if len(chunk) > 8 and (chunk[:8] == "server: " or chunk[:8] == "Server: "):
-        #         dic[line]["http_server"] = chunk[8:]
-        #         inchunkserver = True
 
 
-    except subprocess.TimeoutExpired:
-        print(line + " failed redirect_to_https bc of timeout")
-        dic[line]["hsts"]=False
-        return
-    except:
-        print(line + " failed redirect_to_https not because of timeout")
-        dic[line]["hsts"] = False
-        return
+
+    dic[line]["hsts"] = False
+
 
 
 
@@ -240,7 +246,7 @@ with open(inpath,"r") as file:
 
         # http_server(dic,line)
 
-        # insecure_http(dic,line)
+        insecure_http(dic,line)
 
         # redirect_to_https(dic,line)
 
