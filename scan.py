@@ -57,6 +57,10 @@ def http_server(dic,line):
         print("Failed to lookup server header of " + link + " with curl because of timeout")
         dic[line]["http_server"]=None
 
+    except:
+        print("Failed to lookup server header of " + link + " with curl not because of timeout")
+        dic[line]["http_server"] = None
+
 
 
 def insecure_http(dic,line):
